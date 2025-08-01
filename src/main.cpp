@@ -8,8 +8,7 @@
   320 × 240 pixel colour TFT display (model ESP32‑2432S032C).  The board uses
   a dual‑core ESP32 microcontroller with integrated Wi‑Fi and Bluetooth and
   features an on‑board ST7789 LCD controller and capacitive touch
-  interface【713159532338858†L31-L43】.  The display resolution is
-  240 × 320 pixels with a 65‑k colour gamut【920421873094630†L216-L233】.
+  interface.  The display resolution is 240 × 320 pixels with a 65‑k colour gamut.
 
   When connected to your home network the ESP32 retrieves energy data from
   either the Anker Solix cloud or a local smart‑meter and presents the daily
