@@ -120,6 +120,7 @@ void drawGraph(const std::vector<float> &genData,
 void drawNumbers(float batteryPercent, float dailyGeneration,
                  float dailyConsumption);
 void showMessage(const char *msg);
+void showBootText(const char *line1, const char *line2 = nullptr);
 
 /*
  * Setup function runs once at boot.  It initialises the serial port,
@@ -135,6 +136,10 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+  // Brief boot message before showing the splash screen
+  showBootText("Starting...");
+  delay(1000);
 
   // Display splash screen
   tft.drawString("Anker Solix Monitor", tft.width() / 2, tft.height() / 2 - 20);
@@ -245,6 +250,23 @@ void showMessage(const char *msg) {
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString(msg, tft.width() / 2, tft.height() / 2);
+}
+
+/*
+ * Display a simple boot screen with one or two lines of centred text.  This
+ * is used during startup before the main splash screen appears.
+ */
+void showBootText(const char *line1, const char *line2) {
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  int centerY = tft.height() / 2;
+  if (line2) {
+    tft.drawString(line1, tft.width() / 2, centerY - 10);
+    tft.drawString(line2, tft.width() / 2, centerY + 10);
+  } else {
+    tft.drawString(line1, tft.width() / 2, centerY);
+  }
 }
 
 /*
