@@ -126,7 +126,8 @@ automatically every five minutes.
    convert it to a sketch.  Make sure `src/secrets.h` is present in the same
    directory.
 5. Select the correct serial port and upload the sketch.  On first boot
-   the display will show a splash screen and then update every five minutes.
+   the display briefly shows a text-only boot message followed by the
+   splash screen. The screen then updates every five minutes.
 
 ### PlatformIO
 
