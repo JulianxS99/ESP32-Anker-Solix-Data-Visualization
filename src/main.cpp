@@ -179,7 +179,7 @@ void setup() {
   }
   Serial.println("\nConnected to WiFi: '" WIFI_SSID "'");
   tft.fillScreen(TFT_WHITE);
-  Serial.println("Wait please");
+  Serial.println("Please wait ...");
   delay(10000);
   tft.fillScreen(TFT_BLACK);
 
