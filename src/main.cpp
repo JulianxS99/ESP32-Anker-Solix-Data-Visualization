@@ -281,7 +281,7 @@ void drawGraph(const std::vector<float> &genData,
   tft.drawRect(x0, y0, graphWidth, graphHeight, TFT_LIGHTGREY);
   // Draw vertical grid lines and time labels every 6 hours
   for (int i = 0; i <= 24; i += 6) {
-    int x = x0 + (graphWidth * i) / (POINTS_PER_DAY - 1);
+    int x = x0 + (graphWidth * i) / (POINTS_PER_DAY);  // removed -1 to align graph
     tft.drawLine(x, y0, x, y0 + graphHeight, TFT_DARKGREY);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     char label[4];
@@ -303,7 +303,7 @@ void drawGraph(const std::vector<float> &genData,
   int prevYGen = y0 + graphHeight - (genData[0] / maxVal) * graphHeight;
   int prevYCons = y0 + graphHeight - (consData[0] / maxVal) * graphHeight;
   for (int i = 1; i < POINTS_PER_DAY; ++i) {
-    int x = x0 + (graphWidth * i) / (POINTS_PER_DAY - 1);
+    int x = x0 + (graphWidth * i) / (POINTS_PER_DAY);
     int yGen = y0 + graphHeight - (genData[i] / maxVal) * graphHeight;
     int yCons = y0 + graphHeight - (consData[i] / maxVal) * graphHeight;
     tft.drawLine(prevX, prevYGen, x, yGen, colourGen);
