@@ -84,6 +84,13 @@ enum class Mode { MODE_ANKER_CLOUD, MODE_LOCAL_SMARTMETER };
 
 // Global objects
 TFT_eSPI tft = TFT_eSPI();
+
+// GPIO pin used to control the TFT backlight.  Some boards keep the
+// backlight off after reset which results in a black screen until the pin
+// is driven high.  Adjust the pin number if your hardware differs.
+#ifndef TFT_BL
+#define TFT_BL 27
+#endif
 WiFiClient wifiClient;
 
 // Current operation mode; default to Anker cloud.  You may override this
@@ -137,6 +144,16 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
+
+#ifdef TFT_BL
+  // Turn on the backlight.  Use PWM via LEDC so brightness can be adjusted
+  // later if desired.
+  pinMode(TFT_BL, OUTPUT);
+  digitalWrite(TFT_BL, HIGH);
+  ledcSetup(0, 2000, 8);
+  ledcAttachPin(TFT_BL, 0);
+  ledcWrite(0, 255); // full brightness
+#endif
 
   // Brief boot message before showing the splash screen
   showBootText("Starting...");
