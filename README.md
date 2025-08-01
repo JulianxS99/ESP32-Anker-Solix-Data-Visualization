@@ -170,6 +170,22 @@ The device does not support deep sleep because the board's integrated
 Li-ion charger enters standby if the current consumption is too low.
 Therefore the ESP32 remains active and updates the display periodically.
 
+### Troubleshooting
+
+If the display backlight turns on but no text or splash screen appears after
+flashing the firmware, the TFT_eSPI library is most likely not configured for
+the ST7789 controller.  Open `TFT_eSPI/User_Setup.h` and ensure that the
+following lines are defined:
+
+```c
+#define ST7789_DRIVER
+#define TFT_WIDTH  240
+#define TFT_HEIGHT 320
+```
+
+On the ESP32‑2432S032C the default pin assignments from the TFT_eSPI examples
+are correct.  After saving the changes, rebuild and flash the firmware.
+
 ## Limitations
 
 * The Anker API is proprietary and may change.  You need to provide the
