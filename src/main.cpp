@@ -129,6 +129,7 @@ void showBootText(const char *line1, const char *line2 = nullptr);
 void setup() {
   Serial.begin(115200);
   delay(100);
+  Serial.println("Starting Setup");
 
   // Initialise the TFT display
   tft.init();
@@ -146,6 +147,7 @@ void setup() {
   tft.drawString("Connecting…", tft.width() / 2, tft.height() / 2 + 10);
 
   // Connect to Wi‑Fi
+  Serial.println("Connecting to WiFi\nplease wait\n");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   uint8_t attempt = 0;
@@ -158,7 +160,10 @@ void setup() {
     showMessage("WiFi connection failed");
     return;
   }
-  Serial.println("\nConnected to WiFi");
+  Serial.println("\nConnected to WiFi: '" WIFI_SSID "'");
+  tft.fillScreen(TFT_WHITE);
+  Serial.println("Wait please");
+  delay(10000);
   tft.fillScreen(TFT_BLACK);
 
   // Configure SNTP to obtain the current time.  This is used to display
