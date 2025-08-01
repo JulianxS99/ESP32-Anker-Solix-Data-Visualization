@@ -130,7 +130,8 @@ automatically every five minutes.
 
 ### PlatformIO
 
-Alternatively you can use [PlatformIO](https://platformio.org/):
+Alternatively you can use [PlatformIO](https://platformio.org/).  A ready-made
+`platformio.ini` is included in this repository:
 
 ```ini
 [env:sunton_esp32_display]
@@ -143,9 +144,9 @@ lib_deps =
   bblanchon/ArduinoJson
 ```
 
-Adjust the board definition if PlatformIO has an entry for `esp32-2432s032c`.
-Place `src` and `include` directories into the PlatformIO project and build
-with `pio run` and upload with `pio run -t upload`.
+Open the project folder in VS Code with the PlatformIO extension and click
+**Upload** to flash the firmware.  Adjust the `board` setting if PlatformIO has
+a specific definition for `esp32-2432s032c`.
 
 ## Usage
 
