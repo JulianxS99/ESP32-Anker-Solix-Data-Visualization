@@ -1,0 +1,4 @@
+# PlatformIO build directory
+.pio/
+# VS Code settings
+.vscode/
