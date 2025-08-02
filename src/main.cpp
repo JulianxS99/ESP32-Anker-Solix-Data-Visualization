@@ -71,6 +71,7 @@
 GT911 touch;
 #endif
 #include <vector>
+#include <algorithm>
 
 #include "secrets.h"
 
@@ -434,10 +435,15 @@ bool hasRequiredSdFiles() {
 
 // Callback used by the PNG decoder to draw each line on the TFT.
 void pngDraw(PNGDRAW *pDraw) {
-  static uint16_t lineBuffer[320]; // assumes image width <= 320
-  png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xFFFFFFFF);
+  static std::vector<uint16_t> lineBuffer;
+  size_t requiredWidth = std::max<int>(png.getWidth(), tft.width());
+  if (lineBuffer.size() < requiredWidth) {
+    lineBuffer.resize(requiredWidth);
+  }
+  png.getLineAsRGB565(pDraw, lineBuffer.data(), PNG_RGB565_BIG_ENDIAN,
+                       0xFFFFFFFF);
   int16_t x = (tft.width() - png.getWidth()) / 2;
-  tft.pushImage(x, pDraw->y, png.getWidth(), 1, lineBuffer);
+  tft.pushImage(x, pDraw->y, png.getWidth(), 1, lineBuffer.data());
 }
 
 // Show the boot logo loaded from the SD card.
@@ -447,7 +453,17 @@ void showBootLogo() {
     Serial.println("Boot logo not found");
     return;
   }
-  int16_t rc = png.open(f, pngDraw);
+
+  size_t size = f.size();
+  std::vector<uint8_t> buffer(size);
+  if (f.read(buffer.data(), size) != size) {
+    Serial.println("Failed to read boot logo");
+    f.close();
+    return;
+  }
+  f.close();
+
+  int16_t rc = png.open(buffer.data(), size, pngDraw);
   if (rc == PNG_SUCCESS) {
     tft.fillScreen(TFT_BLACK);
     png.decode(nullptr, 0);
@@ -455,7 +471,6 @@ void showBootLogo() {
     Serial.printf("PNG decode error: %d\n", rc);
   }
   png.close();
-  f.close();
 }
 
 /*
@@ -616,7 +631,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   http.begin(wifiClient, ANKER_AUTH_URL);
   http.addHeader("Content-Type", "application/json");
   // Build JSON body for login; credentials defined in secrets.h
-  StaticJsonDocument<256> loginDoc;
+  JsonDocument loginDoc(256);
   loginDoc["userAccount"] = ANKER_USER;
   loginDoc["password"] = ANKER_PASSWORD;
   loginDoc["country"] = ANKER_COUNTRY;
@@ -631,7 +646,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   // Parse authentication response
   String response = http.getString();
   http.end();
-  StaticJsonDocument<1024> authDoc;
+  JsonDocument authDoc(1024);
   DeserializationError err = deserializeJson(authDoc, response);
   if (err) {
     Serial.println("Failed to parse auth response");
@@ -660,7 +675,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   //  "daily_consumption": 2.10,
   //  "generation_curve": [24 floats ...],
   //  "consumption_curve": [24 floats ...] }.
-  StaticJsonDocument<4096> energyDoc;
+  JsonDocument energyDoc(4096);
   err = deserializeJson(energyDoc, energyResponse);
   if (err) {
     Serial.println("Failed to parse energy response");
@@ -712,7 +727,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
   }
   String response = http.getString();
   http.end();
-  StaticJsonDocument<4096> doc;
+  JsonDocument doc(4096);
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
     Serial.println("Failed to parse smart‑meter response");
