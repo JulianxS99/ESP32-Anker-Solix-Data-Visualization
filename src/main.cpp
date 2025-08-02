@@ -54,6 +54,10 @@
 #include <ArduinoJson.h>
 #include <TFT_eSPI.h>
 #include <time.h>
+#include <FS.h>
+#include <SPI.h>
+#include <SD.h>
+#include <PNGdec.h>
 
 // Optional touch support.  Define HAS_TOUCH to 1 and install a GT911 touch
 // library (e.g. https://github.com/alex-code/GT911) to enable on‑screen
@@ -93,6 +97,11 @@ TFT_eSPI tft = TFT_eSPI();
 #define TFT_BL 27
 #endif
 WiFiClient wifiClient;
+PNG png;
+constexpr const char *BOOT_LOGO_PATH = "/pictures/Boot Logo_GPT.png";
+const char *REQUIRED_SD_FILES[] = {BOOT_LOGO_PATH};
+constexpr size_t NUM_REQUIRED_SD_FILES =
+    sizeof(REQUIRED_SD_FILES) / sizeof(REQUIRED_SD_FILES[0]);
 
 // Current operation mode; default to Anker cloud.  You may override this
 // value in setup() by reading from non‑volatile storage or by using a
@@ -159,6 +168,9 @@ uint32_t nextRetryTime = 0;
 void updateTimestamp();
 void updateRetryCountdown();
 void showInfoScreen(const char *line1);
+bool initSDCard();
+bool hasRequiredSdFiles();
+void showBootLogo();
 
 // Forward declarations
 bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
@@ -203,11 +215,17 @@ void setup() {
   ledcWrite(0, 255); // full brightness
 #endif
 
-  // Brief boot message before showing the splash screen
-  showBootText("Starting...");
-  delay(1000);
+  // Attempt to show boot logo from SD card
+  if (initSDCard() && hasRequiredSdFiles()) {
+    showBootLogo();
+    delay(2000);
+  } else {
+    showBootText("Starting...");
+    delay(1000);
+  }
 
   // Display splash screen
+  tft.fillScreen(TFT_BLACK);
   tft.drawString("Anker Solix Monitor", tft.width() / 2, tft.height() / 2 - 20);
   tft.drawString("Connecting to WiFi ...", tft.width() / 2, tft.height() / 2 + 10);
 
@@ -387,6 +405,57 @@ void showBootText(const char *line1, const char *line2) {
   } else {
     tft.drawString(line1, tft.width() / 2, centerY);
   }
+}
+
+// Initialise the SD card and check that it is present.
+bool initSDCard() {
+  if (!SD.begin()) {
+    Serial.println("SD init failed");
+    return false;
+  }
+  if (SD.cardType() == CARD_NONE) {
+    Serial.println("No SD card attached");
+    return false;
+  }
+  Serial.println("SD card detected");
+  return true;
+}
+
+// Verify that all required repository files exist on the SD card.
+bool hasRequiredSdFiles() {
+  for (size_t i = 0; i < NUM_REQUIRED_SD_FILES; ++i) {
+    if (!SD.exists(REQUIRED_SD_FILES[i])) {
+      Serial.printf("Missing SD file: %s\n", REQUIRED_SD_FILES[i]);
+      return false;
+    }
+  }
+  return true;
+}
+
+// Callback used by the PNG decoder to draw each line on the TFT.
+void pngDraw(PNGDRAW *pDraw) {
+  static uint16_t lineBuffer[320]; // assumes image width <= 320
+  png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xFFFFFFFF);
+  int16_t x = (tft.width() - png.getWidth()) / 2;
+  tft.pushImage(x, pDraw->y, png.getWidth(), 1, lineBuffer);
+}
+
+// Show the boot logo loaded from the SD card.
+void showBootLogo() {
+  File f = SD.open(BOOT_LOGO_PATH);
+  if (!f) {
+    Serial.println("Boot logo not found");
+    return;
+  }
+  int16_t rc = png.open(f, pngDraw);
+  if (rc == PNG_SUCCESS) {
+    tft.fillScreen(TFT_BLACK);
+    png.decode(nullptr, 0);
+  } else {
+    Serial.printf("PNG decode error: %d\n", rc);
+  }
+  png.close();
+  f.close();
 }
 
 /*
