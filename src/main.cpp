@@ -75,6 +75,7 @@ GT911 touch;
  * of the display and data acquisition.
  */
 constexpr uint32_t REFRESH_INTERVAL_MS = 5UL * 60UL * 1000UL; // update every 5 minutes
+constexpr uint32_t RETRY_INTERVAL_MS = 3UL * 60UL * 1000UL;  // retry every 3 minutes on failure
 constexpr int POINTS_PER_DAY = 24;                            // number of samples per day (hourly)
 
 // Enumeration for operation mode.  Select MODE_ANKER_CLOUD to use the
@@ -110,8 +111,21 @@ constexpr int REFRESH_BTN_H = 30;
 // initialised with a placeholder and updated after each successful fetch.
 String lastUpdateStr = String("--:--:--");
 
-// Forward declaration for timestamp helper
+// Timestamp of the last connection attempt.  Exposed globally so that
+// setup() can schedule the next retry when Wi-Fi is unavailable.
+uint32_t lastUpdate = 0;
+
+// Current interval for refresh or retry; defaults to normal refresh interval.
+uint32_t currentInterval = REFRESH_INTERVAL_MS;
+
+// Milliseconds when the next reconnect attempt should occur.  A value of
+// zero disables the on-screen countdown.
+uint32_t nextRetryTime = 0;
+
+// Forward declarations for helper functions
 void updateTimestamp();
+void updateRetryCountdown();
+void showInfoScreen(const char *line1);
 
 // Forward declarations
 bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
@@ -173,7 +187,11 @@ void setup() {
     Serial.print(".");
   }
   if (WiFi.status() != WL_CONNECTED) {
-    showMessage("WiFi connection failed");
+    // Schedule next retry and present informative screen with countdown
+    lastUpdate = millis();
+    currentInterval = RETRY_INTERVAL_MS;
+    nextRetryTime = lastUpdate + RETRY_INTERVAL_MS;
+    showInfoScreen("WiFi connection failed");
     return;
   }
   Serial.println("\nConnected to WiFi: '" WIFI_SSID "'");
@@ -214,7 +232,6 @@ void setup() {
  * refresh timer prevents unnecessary network traffic.
  */
 void loop() {
-  static uint32_t lastUpdate = 0;
   uint32_t now = millis();
   bool forceRefresh = false;
 #if HAS_TOUCH
@@ -235,7 +252,7 @@ void loop() {
     }
   }
 #endif
-  if (now - lastUpdate >= REFRESH_INTERVAL_MS || lastUpdate == 0 || forceRefresh) {
+  if (now - lastUpdate >= currentInterval || lastUpdate == 0 || forceRefresh) {
     lastUpdate = now;
     float batteryPercent = NAN;
     float dailyGen = NAN;
@@ -243,10 +260,12 @@ void loop() {
     std::vector<float> genCurve(POINTS_PER_DAY, 0.0f);
     std::vector<float> consCurve(POINTS_PER_DAY, 0.0f);
     bool ok = false;
-    if (currentMode == Mode::MODE_ANKER_CLOUD) {
-      ok = fetchAnkerData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
-    } else {
-      ok = fetchSmartmeterData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
+    if (WiFi.status() == WL_CONNECTED) {
+      if (currentMode == Mode::MODE_ANKER_CLOUD) {
+        ok = fetchAnkerData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
+      } else {
+        ok = fetchSmartmeterData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
+      }
     }
     if (ok) {
       // Update timestamp of last successful fetch
@@ -255,10 +274,19 @@ void loop() {
       tft.fillScreen(TFT_BLACK);
       drawGraph(genCurve, consCurve);
       drawNumbers(batteryPercent, dailyGen, dailyCons);
+      currentInterval = REFRESH_INTERVAL_MS;
+      nextRetryTime = 0; // hide countdown after successful update
     } else {
-      showMessage("Data fetch error");
-      // tft.drawString("Hallo Welt!", 20, 50);
+      currentInterval = RETRY_INTERVAL_MS;
+      nextRetryTime = now + RETRY_INTERVAL_MS;
+      if (WiFi.status() != WL_CONNECTED) {
+        showInfoScreen("WiFi connection failed");
+      } else {
+        showInfoScreen("Data fetch error");
+      }
     }
+  } else {
+    updateRetryCountdown();
   }
   // Allow the CPU to rest between refreshes
   delay(100);
@@ -273,6 +301,41 @@ void showMessage(const char *msg) {
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString(msg, tft.width() / 2, tft.height() / 2);
+}
+
+/*
+ * Present an informative screen that still shows the graph layout and
+ * numeric placeholders while highlighting an error message.
+ */
+void showInfoScreen(const char *line1) {
+  std::vector<float> empty(POINTS_PER_DAY, 0.0f);
+  tft.fillScreen(TFT_BLACK);
+  drawGraph(empty, empty);
+  drawNumbers(NAN, NAN, NAN);
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.setTextSize(2);
+  tft.drawString(line1, tft.width() / 2, 2);
+  tft.setTextSize(1);
+  updateRetryCountdown();
+}
+
+/*
+ * Update the on-screen countdown indicating when the next connection
+ * attempt will be made.
+ */
+void updateRetryCountdown() {
+  if (nextRetryTime == 0) {
+    return;
+  }
+  uint32_t now = millis();
+  uint32_t remaining = (nextRetryTime > now) ? nextRetryTime - now : 0;
+  char buf[24];
+  sprintf(buf, "Retry in %02u:%02u", remaining / 60000, (remaining / 1000) % 60);
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.setTextSize(1);
+  tft.drawString(buf, tft.width() / 2, 18);
 }
 
 /*
