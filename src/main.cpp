@@ -625,7 +625,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   http.begin(wifiClient, ANKER_AUTH_URL);
   http.addHeader("Content-Type", "application/json");
   // Build JSON body for login; credentials defined in secrets.h
-  StaticJsonDocument<256> loginDoc;
+  JsonDocument loginDoc(256);
   loginDoc["userAccount"] = ANKER_USER;
   loginDoc["password"] = ANKER_PASSWORD;
   loginDoc["country"] = ANKER_COUNTRY;
@@ -640,7 +640,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   // Parse authentication response
   String response = http.getString();
   http.end();
-  StaticJsonDocument<1024> authDoc;
+  JsonDocument authDoc(1024);
   DeserializationError err = deserializeJson(authDoc, response);
   if (err) {
     Serial.println("Failed to parse auth response");
@@ -669,7 +669,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   //  "daily_consumption": 2.10,
   //  "generation_curve": [24 floats ...],
   //  "consumption_curve": [24 floats ...] }.
-  StaticJsonDocument<4096> energyDoc;
+  JsonDocument energyDoc(4096);
   err = deserializeJson(energyDoc, energyResponse);
   if (err) {
     Serial.println("Failed to parse energy response");
@@ -721,7 +721,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
   }
   String response = http.getString();
   http.end();
-  StaticJsonDocument<4096> doc;
+  JsonDocument doc(4096);
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
     Serial.println("Failed to parse smart‑meter response");
