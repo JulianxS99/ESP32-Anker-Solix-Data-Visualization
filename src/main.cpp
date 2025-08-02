@@ -447,7 +447,17 @@ void showBootLogo() {
     Serial.println("Boot logo not found");
     return;
   }
-  int16_t rc = png.open(f, pngDraw);
+
+  size_t size = f.size();
+  std::vector<uint8_t> buffer(size);
+  if (f.read(buffer.data(), size) != size) {
+    Serial.println("Failed to read boot logo");
+    f.close();
+    return;
+  }
+  f.close();
+
+  int16_t rc = png.open(buffer.data(), size, pngDraw);
   if (rc == PNG_SUCCESS) {
     tft.fillScreen(TFT_BLACK);
     png.decode(nullptr, 0);
@@ -455,7 +465,6 @@ void showBootLogo() {
     Serial.printf("PNG decode error: %d\n", rc);
   }
   png.close();
-  f.close();
 }
 
 /*
