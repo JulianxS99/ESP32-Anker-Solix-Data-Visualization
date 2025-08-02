@@ -161,10 +161,9 @@ void setup() {
 
   // Display splash screen
   tft.drawString("Anker Solix Monitor", tft.width() / 2, tft.height() / 2 - 20);
-  tft.drawString("Connecting…", tft.width() / 2, tft.height() / 2 + 10);
+  tft.drawString("Connecting to WiFi ...", tft.width() / 2, tft.height() / 2 + 10);
 
   // Connect to Wi‑Fi
-  Serial.println("Connecting to WiFi\nplease wait\n");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   uint8_t attempt = 0;
@@ -178,10 +177,11 @@ void setup() {
     return;
   }
   Serial.println("\nConnected to WiFi: '" WIFI_SSID "'");
-  tft.fillScreen(TFT_WHITE);
-  Serial.println("Please wait ...");
+  
+  // tft.fillScreen(TFT_BLACK);
+  // showMessage("Connected to WiFi: '" WIFI_SSID "'");
+  tft.drawString("Connected to WiFi: '" WIFI_SSID "'", tft.width() / 2, tft.height() / 2 + 10);
   delay(10000);
-  tft.fillScreen(TFT_BLACK);
 
   // Configure SNTP to obtain the current time.  This is used to display
   // the last update timestamp.  The offset and daylight parameters are set
@@ -257,6 +257,7 @@ void loop() {
       drawNumbers(batteryPercent, dailyGen, dailyCons);
     } else {
       showMessage("Data fetch error");
+      // tft.drawString("Hallo Welt!", 20, 50);
     }
   }
   // Allow the CPU to rest between refreshes
