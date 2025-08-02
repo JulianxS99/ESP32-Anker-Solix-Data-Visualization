@@ -71,6 +71,7 @@
 GT911 touch;
 #endif
 #include <vector>
+#include <algorithm>
 
 #include "secrets.h"
 
@@ -434,10 +435,15 @@ bool hasRequiredSdFiles() {
 
 // Callback used by the PNG decoder to draw each line on the TFT.
 void pngDraw(PNGDRAW *pDraw) {
-  static uint16_t lineBuffer[320]; // assumes image width <= 320
-  png.getLineAsRGB565(pDraw, lineBuffer, PNG_RGB565_BIG_ENDIAN, 0xFFFFFFFF);
+  static std::vector<uint16_t> lineBuffer;
+  size_t requiredWidth = std::max<int>(png.getWidth(), tft.width());
+  if (lineBuffer.size() < requiredWidth) {
+    lineBuffer.resize(requiredWidth);
+  }
+  png.getLineAsRGB565(pDraw, lineBuffer.data(), PNG_RGB565_BIG_ENDIAN,
+                       0xFFFFFFFF);
   int16_t x = (tft.width() - png.getWidth()) / 2;
-  tft.pushImage(x, pDraw->y, png.getWidth(), 1, lineBuffer);
+  tft.pushImage(x, pDraw->y, png.getWidth(), 1, lineBuffer.data());
 }
 
 // Show the boot logo loaded from the SD card.
