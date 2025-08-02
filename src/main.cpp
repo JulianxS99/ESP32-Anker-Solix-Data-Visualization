@@ -75,6 +75,7 @@ GT911 touch;
  * of the display and data acquisition.
  */
 constexpr uint32_t REFRESH_INTERVAL_MS = 5UL * 60UL * 1000UL; // update every 5 minutes
+constexpr uint32_t RETRY_INTERVAL_MS = 3UL * 60UL * 1000UL;  // retry every 3 minutes on failure
 constexpr int POINTS_PER_DAY = 24;                            // number of samples per day (hourly)
 
 // Enumeration for operation mode.  Select MODE_ANKER_CLOUD to use the
@@ -98,20 +99,66 @@ WiFiClient wifiClient;
 // configuration button.
 Mode currentMode = Mode::MODE_ANKER_CLOUD;
 
-// Geometry for the on‑screen refresh button.  Modify these values to
-// reposition the button.  Coordinates are relative to the rotated
-// (landscape) display.
-constexpr int REFRESH_BTN_X = 230;
-constexpr int REFRESH_BTN_Y = 200;
-constexpr int REFRESH_BTN_W = 80;
-constexpr int REFRESH_BTN_H = 30;
+// --- Layout configuration -------------------------------------------------
+// The screen elements are positioned relative to the current display size so
+// that they still fit if the resolution or rotation changes.  The values are
+// computed during ``setup()`` once the TFT dimensions are known.
+constexpr int GAP = 4;               // uniform gap between UI elements
+int screenMargin = 0;                // outer margin
+int graphX = 0, graphY = 0;          // top‑left corner of the graph area
+int graphW = 0, graphH = 0;          // size of the graph
+int numbersY = 0;                    // baseline for the numeric section
+int refreshBtnX = 0, refreshBtnY = 0;// refresh button geometry
+int refreshBtnW = 0, refreshBtnH = 0;
+int lastUpdateY = 0;                 // y‑coordinate of the "Updated" label
+
+// Compute geometry for all screen elements.  Call after setting rotation.
+void computeLayout() {
+  screenMargin = tft.width() / 32;                // ≈10px on 320px wide screen
+  refreshBtnW = tft.width() / 4;                  // ≈80px
+  refreshBtnH = tft.height() / 8;                 // ≈30px
+
+  // Space used by the message and countdown at the top of the screen.
+  int infoHeight = tft.fontHeight(2) + GAP + tft.fontHeight(1) + GAP;
+
+  // Height required for the three lines of numerical data.
+  int numbersHeight = (tft.fontHeight(2) + GAP) * 3;
+
+  // Remaining height for the graph after reserving space for all elements.
+  graphW = tft.width() - 2 * screenMargin;
+  graphH = tft.height() - infoHeight - numbersHeight - refreshBtnH -
+           tft.fontHeight(1) - screenMargin - GAP * 3;
+  if (graphH < 50) {
+    graphH = 50; // ensure graph remains visible
+  }
+  graphX = screenMargin;
+  graphY = infoHeight;
+
+  numbersY = graphY + graphH + GAP;
+  refreshBtnX = tft.width() - screenMargin - refreshBtnW;
+  refreshBtnY = numbersY + numbersHeight + GAP;
+  lastUpdateY = refreshBtnY + refreshBtnH + GAP;
+}
 
 // Human readable timestamp of the last successful update.  It is
 // initialised with a placeholder and updated after each successful fetch.
 String lastUpdateStr = String("--:--:--");
 
-// Forward declaration for timestamp helper
+// Timestamp of the last connection attempt.  Exposed globally so that
+// setup() can schedule the next retry when Wi-Fi is unavailable.
+uint32_t lastUpdate = 0;
+
+// Current interval for refresh or retry; defaults to normal refresh interval.
+uint32_t currentInterval = REFRESH_INTERVAL_MS;
+
+// Milliseconds when the next reconnect attempt should occur.  A value of
+// zero disables the on-screen countdown.
+uint32_t nextRetryTime = 0;
+
+// Forward declarations for helper functions
 void updateTimestamp();
+void updateRetryCountdown();
+void showInfoScreen(const char *line1);
 
 // Forward declarations
 bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
@@ -144,6 +191,7 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  computeLayout();
 
 #ifdef TFT_BL
   // Turn on the backlight.  Use PWM via LEDC so brightness can be adjusted
@@ -173,7 +221,11 @@ void setup() {
     Serial.print(".");
   }
   if (WiFi.status() != WL_CONNECTED) {
-    showMessage("WiFi connection failed");
+    // Schedule next retry and present informative screen with countdown
+    lastUpdate = millis();
+    currentInterval = RETRY_INTERVAL_MS;
+    nextRetryTime = lastUpdate + RETRY_INTERVAL_MS;
+    showInfoScreen("WiFi connection failed");
     return;
   }
   Serial.println("\nConnected to WiFi: '" WIFI_SSID "'");
@@ -214,7 +266,6 @@ void setup() {
  * refresh timer prevents unnecessary network traffic.
  */
 void loop() {
-  static uint32_t lastUpdate = 0;
   uint32_t now = millis();
   bool forceRefresh = false;
 #if HAS_TOUCH
@@ -227,15 +278,15 @@ void loop() {
       // Convert portrait coordinates (x,y) to our landscape orientation
       int16_t px = points[i].y;
       int16_t py = 320 - points[i].x;
-      if (px >= REFRESH_BTN_X && px <= REFRESH_BTN_X + REFRESH_BTN_W &&
-          py >= REFRESH_BTN_Y && py <= REFRESH_BTN_Y + REFRESH_BTN_H) {
+      if (px >= refreshBtnX && px <= refreshBtnX + refreshBtnW &&
+          py >= refreshBtnY && py <= refreshBtnY + refreshBtnH) {
         forceRefresh = true;
         break;
       }
     }
   }
 #endif
-  if (now - lastUpdate >= REFRESH_INTERVAL_MS || lastUpdate == 0 || forceRefresh) {
+  if (now - lastUpdate >= currentInterval || lastUpdate == 0 || forceRefresh) {
     lastUpdate = now;
     float batteryPercent = NAN;
     float dailyGen = NAN;
@@ -243,10 +294,12 @@ void loop() {
     std::vector<float> genCurve(POINTS_PER_DAY, 0.0f);
     std::vector<float> consCurve(POINTS_PER_DAY, 0.0f);
     bool ok = false;
-    if (currentMode == Mode::MODE_ANKER_CLOUD) {
-      ok = fetchAnkerData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
-    } else {
-      ok = fetchSmartmeterData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
+    if (WiFi.status() == WL_CONNECTED) {
+      if (currentMode == Mode::MODE_ANKER_CLOUD) {
+        ok = fetchAnkerData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
+      } else {
+        ok = fetchSmartmeterData(batteryPercent, dailyGen, dailyCons, genCurve, consCurve);
+      }
     }
     if (ok) {
       // Update timestamp of last successful fetch
@@ -255,10 +308,19 @@ void loop() {
       tft.fillScreen(TFT_BLACK);
       drawGraph(genCurve, consCurve);
       drawNumbers(batteryPercent, dailyGen, dailyCons);
+      currentInterval = REFRESH_INTERVAL_MS;
+      nextRetryTime = 0; // hide countdown after successful update
     } else {
-      showMessage("Data fetch error");
-      // tft.drawString("Hallo Welt!", 20, 50);
+      currentInterval = RETRY_INTERVAL_MS;
+      nextRetryTime = now + RETRY_INTERVAL_MS;
+      if (WiFi.status() != WL_CONNECTED) {
+        showInfoScreen("WiFi connection failed");
+      } else {
+        showInfoScreen("Data fetch error");
+      }
     }
+  } else {
+    updateRetryCountdown();
   }
   // Allow the CPU to rest between refreshes
   delay(100);
@@ -273,6 +335,41 @@ void showMessage(const char *msg) {
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString(msg, tft.width() / 2, tft.height() / 2);
+}
+
+/*
+ * Present an informative screen that still shows the graph layout and
+ * numeric placeholders while highlighting an error message.
+ */
+void showInfoScreen(const char *line1) {
+  std::vector<float> empty(POINTS_PER_DAY, 0.0f);
+  tft.fillScreen(TFT_BLACK);
+  drawGraph(empty, empty);
+  drawNumbers(NAN, NAN, NAN);
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(TFT_RED, TFT_BLACK);
+  tft.setTextSize(2);
+  tft.drawString(line1, tft.width() / 2, GAP);
+  tft.setTextSize(1);
+  updateRetryCountdown();
+}
+
+/*
+ * Update the on-screen countdown indicating when the next connection
+ * attempt will be made.
+ */
+void updateRetryCountdown() {
+  if (nextRetryTime == 0) {
+    return;
+  }
+  uint32_t now = millis();
+  uint32_t remaining = (nextRetryTime > now) ? nextRetryTime - now : 0;
+  char buf[24];
+  sprintf(buf, "Retry in %02u:%02u", remaining / 60000, (remaining / 1000) % 60);
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+  tft.setTextSize(1);
+  tft.drawString(buf, tft.width() / 2, tft.fontHeight(2) + GAP * 2);
 }
 
 /*
@@ -299,11 +396,11 @@ void showBootText(const char *line1, const char *line2) {
  */
 void drawGraph(const std::vector<float> &genData,
                const std::vector<float> &consData) {
-  // Define graph geometry
-  const int x0 = 10;
-  const int y0 = 20;
-  const int graphWidth = 300;
-  const int graphHeight = 130;
+  // Use precomputed layout values
+  const int x0 = graphX;
+  const int y0 = graphY;
+  const int graphWidth = graphW;
+  const int graphHeight = graphH;
   const uint16_t colourGen = TFT_GREEN;
   const uint16_t colourCons = TFT_RED;
 
@@ -356,13 +453,13 @@ void drawGraph(const std::vector<float> &genData,
     prevYGen = yGen;
     prevYCons = yCons;
   }
-  // Draw legend
-  int legendY = y0 - 10;
-  tft.fillRect(x0, legendY - 8, 120, 16, TFT_BLACK);
-  tft.fillRect(x0 + 2, legendY - 6, 10, 4, colourGen);
-  tft.drawString("Generation", x0 + 16, legendY - 10);
-  tft.fillRect(x0 + 80, legendY - 6, 10, 4, colourCons);
-  tft.drawString("Consumption", x0 + 94, legendY - 10);
+  // Draw legend inside the graph area
+  int legendY = y0 + 4;
+  tft.fillRect(x0 + 2, legendY, 10, 4, colourGen);
+  tft.drawString("Generation", x0 + 16, legendY - 2);
+  int consX = x0 + graphWidth / 2;
+  tft.fillRect(consX, legendY, 10, 4, colourCons);
+  tft.drawString("Consumption", consX + 14, legendY - 2);
 }
 
 /*
@@ -372,9 +469,9 @@ void drawGraph(const std::vector<float> &genData,
  */
 void drawNumbers(float batteryPercent, float dailyGeneration,
                  float dailyConsumption) {
-  int startY = 170;
-  int colX = 10;
-  int rowHeight = 20;
+  int startY = numbersY;
+  int colX = screenMargin;
+  int rowHeight = tft.fontHeight(2) + GAP;
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextSize(2);
   // Battery state
@@ -410,23 +507,23 @@ void drawNumbers(float batteryPercent, float dailyGeneration,
   // border and white text forms the on‑screen button.  Users can tap
   // anywhere inside this area to trigger an immediate refresh when touch
   // support is enabled.
-  tft.fillRect(REFRESH_BTN_X, REFRESH_BTN_Y, REFRESH_BTN_W, REFRESH_BTN_H,
+  tft.fillRect(refreshBtnX, refreshBtnY, refreshBtnW, refreshBtnH,
                TFT_DARKGREY);
-  tft.drawRect(REFRESH_BTN_X, REFRESH_BTN_Y, REFRESH_BTN_W, REFRESH_BTN_H,
+  tft.drawRect(refreshBtnX, refreshBtnY, refreshBtnW, refreshBtnH,
                TFT_LIGHTGREY);
   tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
   tft.setTextSize(2);
   // Centre the text vertically within the button.  The string width is
   // approximated; adjust if you change the text.
-  tft.drawString("Refresh", REFRESH_BTN_X + 6,
-                  REFRESH_BTN_Y + (REFRESH_BTN_H - 16) / 2);
+  tft.drawString("Refresh", refreshBtnX + 6,
+                 refreshBtnY + (refreshBtnH - tft.fontHeight(2)) / 2);
   tft.setTextSize(1);
 
   // Display the timestamp of the last successful update underneath the
   // button.  The label remains even if no updates have occurred yet.
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  tft.drawString(String("Updated: ") + lastUpdateStr, 10,
-                  REFRESH_BTN_Y + REFRESH_BTN_H + 4);
+  tft.drawString(String("Updated: ") + lastUpdateStr, screenMargin,
+                 lastUpdateY);
 }
 
 /*
