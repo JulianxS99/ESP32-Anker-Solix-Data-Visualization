@@ -129,8 +129,11 @@ constexpr int legendColorBox = 12;
 constexpr int legendTextOffsetY = 7;
 
 // Numerical values block
-constexpr int valuesX = 15;
+constexpr int valuesX = 5;
 constexpr int valuesY = 150;
+// Distance between the value labels and the numerical values.  Matches the
+// Processing reference sketch; numeric values are right‑aligned to avoid
+// overlapping the refresh button.
 constexpr int valueLabelToValDist = 160;
 constexpr int rowHeight = 24;
 
@@ -561,7 +564,9 @@ void drawNumbers(float batteryPercent, float dailyGeneration,
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextSize(2);
   // Battery state
+  tft.setTextDatum(TL_DATUM);
   tft.drawString("Battery:", colX, startY);
+  tft.setTextDatum(TR_DATUM);
   if (isnan(batteryPercent)) {
     tft.drawString("-- %", colX + valueLabelToValDist, startY);
   } else {
@@ -570,7 +575,9 @@ void drawNumbers(float batteryPercent, float dailyGeneration,
     tft.drawString(buf, colX + valueLabelToValDist, startY);
   }
   // Daily generation
+  tft.setTextDatum(TL_DATUM);
   tft.drawString("Generated:", colX, startY + rowHeight);
+  tft.setTextDatum(TR_DATUM);
   if (isnan(dailyGeneration)) {
     tft.drawString("-- kWh", colX + valueLabelToValDist, startY + rowHeight);
   } else {
@@ -579,7 +586,9 @@ void drawNumbers(float batteryPercent, float dailyGeneration,
     tft.drawString(buf, colX + valueLabelToValDist, startY + rowHeight);
   }
   // Daily consumption
+  tft.setTextDatum(TL_DATUM);
   tft.drawString("Consumed:", colX, startY + 2 * rowHeight);
+  tft.setTextDatum(TR_DATUM);
   if (isnan(dailyConsumption)) {
     tft.drawString("-- kWh", colX + valueLabelToValDist, startY + 2 * rowHeight);
   } else {
@@ -587,6 +596,8 @@ void drawNumbers(float batteryPercent, float dailyGeneration,
     sprintf(buf, "%5.2f kWh", dailyConsumption);
     tft.drawString(buf, colX + valueLabelToValDist, startY + 2 * rowHeight);
   }
+  // Reset datum and text size for subsequent elements
+  tft.setTextDatum(TL_DATUM);
   tft.setTextSize(1);
 
   // Draw the refresh button.  A dark grey filled rectangle with a light
