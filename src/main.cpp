@@ -428,7 +428,7 @@ bool hasRequiredSdFiles() {
 }
 
 // Callback used by the PNG decoder to draw each line on the TFT.
-void pngDraw(PNGDRAW *pDraw) {
+int pngDraw(PNGDRAW *pDraw) {
   static std::vector<uint16_t> lineBuffer;
   size_t requiredWidth = std::max<int>(png.getWidth(), tft.width());
   if (lineBuffer.size() < requiredWidth) {
@@ -438,6 +438,7 @@ void pngDraw(PNGDRAW *pDraw) {
                        0xFFFFFFFF);
   int16_t x = (tft.width() - png.getWidth()) / 2;
   tft.pushImage(x, pDraw->y, png.getWidth(), 1, lineBuffer.data());
+  return 1;  // Continue decoding
 }
 
 // Show the boot logo loaded from the SD card.
