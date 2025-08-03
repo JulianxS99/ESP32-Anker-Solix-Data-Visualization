@@ -110,45 +110,40 @@ constexpr size_t NUM_REQUIRED_SD_FILES =
 Mode currentMode = Mode::MODE_ANKER_CLOUD;
 
 // --- Layout configuration -------------------------------------------------
-// The screen elements are positioned relative to the current display size so
-// that they still fit if the resolution or rotation changes.  The values are
-// computed during ``setup()`` once the TFT dimensions are known.
-constexpr int GAP = 4;               // uniform gap between UI elements
-int screenMargin = 0;                // outer margin
-int graphX = 0, graphY = 0;          // top‑left corner of the graph area
-int graphW = 0, graphH = 0;          // size of the graph
-int numbersY = 0;                    // baseline for the numeric section
-int refreshBtnX = 0, refreshBtnY = 0;// refresh button geometry
-int refreshBtnW = 0, refreshBtnH = 0;
-int lastUpdateY = 0;                 // y‑coordinate of the "Updated" label
+// Fixed positions based on the Processing template in ``sketch.pde``.
+// These constants assume a 320x240 pixel landscape display.
+constexpr int GAP = 4; // small uniform gap between UI elements
 
-// Compute geometry for all screen elements.  Call after setting rotation.
-void computeLayout() {
-  screenMargin = tft.width() / 32;                // ≈10px on 320px wide screen
-  refreshBtnW = tft.width() / 4;                  // ≈80px
-  refreshBtnH = tft.height() / 8;                 // ≈30px
+// Graph area
+constexpr int graphX = 40;
+constexpr int graphY = 8;
+constexpr int graphW = 270;
+constexpr int graphH = 120;
 
-  // Space used by the message and countdown at the top of the screen.
-  int infoHeight = tft.fontHeight(2) + GAP + tft.fontHeight(1) + GAP;
+// Legend box inside the graph
+constexpr int legendBoxW = 115;
+constexpr int legendBoxH = 38;
+constexpr int legendBoxMarginX = 8;
+constexpr int legendBoxMarginY = 6;
+constexpr int legendColorBox = 12;
+constexpr int legendTextOffsetY = 7;
 
-  // Height required for the three lines of numerical data.
-  int numbersHeight = (tft.fontHeight(2) + GAP) * 3;
+// Numerical values block
+constexpr int valuesX = 5;
+constexpr int valuesY = 150;
+constexpr int valueLabelToValDist = 160;
+constexpr int rowHeight = 24;
 
-  // Remaining height for the graph after reserving space for all elements.
-  graphW = tft.width() - 2 * screenMargin;
-  graphH = tft.height() - infoHeight - numbersHeight - refreshBtnH -
-           tft.fontHeight(1) - screenMargin - GAP * 3;
-  if (graphH < 50) {
-    graphH = 50; // ensure graph remains visible
-  }
-  graphX = screenMargin;
-  graphY = infoHeight;
+// Refresh button
+constexpr int refreshBtnW = 80;
+constexpr int refreshBtnH = 30;
+constexpr int refreshBtnX = 320 - refreshBtnW - 10; // right-aligned
+constexpr int refreshBtnY = 200;
+constexpr int refreshTextOffsetX = 16;
+constexpr int refreshTextOffsetY = -1;
 
-  numbersY = graphY + graphH + GAP;
-  refreshBtnX = tft.width() - screenMargin - refreshBtnW;
-  refreshBtnY = numbersY + numbersHeight + GAP;
-  lastUpdateY = refreshBtnY + refreshBtnH + GAP;
-}
+// Last update timestamp
+constexpr int updatedY = 220;
 
 // Human readable timestamp of the last successful update.  It is
 // initialised with a placeholder and updated after each successful fetch.
@@ -204,7 +199,6 @@ void setup() {
   tft.fillScreen(TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  computeLayout();
 
 #ifdef TFT_BL
   // Turn on the backlight.  Use PWM via LEDC so brightness can be adjusted
@@ -434,7 +428,7 @@ bool hasRequiredSdFiles() {
 }
 
 // Callback used by the PNG decoder to draw each line on the TFT.
-void pngDraw(PNGDRAW *pDraw) {
+int pngDraw(PNGDRAW *pDraw) {
   static std::vector<uint16_t> lineBuffer;
   size_t requiredWidth = std::max<int>(png.getWidth(), tft.width());
   if (lineBuffer.size() < requiredWidth) {
@@ -444,6 +438,7 @@ void pngDraw(PNGDRAW *pDraw) {
                        0xFFFFFFFF);
   int16_t x = (tft.width() - png.getWidth()) / 2;
   tft.pushImage(x, pDraw->y, png.getWidth(), 1, lineBuffer.data());
+  return 1;  // Continue decoding
 }
 
 // Show the boot logo loaded from the SD card.
@@ -463,7 +458,7 @@ void showBootLogo() {
   }
   f.close();
 
-  int16_t rc = png.open(buffer.data(), size, pngDraw);
+  int16_t rc = png.openRAM(buffer.data(), size, pngDraw);
   if (rc == PNG_SUCCESS) {
     tft.fillScreen(TFT_BLACK);
     png.decode(nullptr, 0);
@@ -485,7 +480,7 @@ void drawGraph(const std::vector<float> &genData,
   const int y0 = graphY;
   const int graphWidth = graphW;
   const int graphHeight = graphH;
-  const uint16_t colourGen = TFT_GREEN;
+  const uint16_t colourGen = TFT_YELLOW;
   const uint16_t colourCons = TFT_RED;
 
   // Draw background for graph
@@ -537,13 +532,21 @@ void drawGraph(const std::vector<float> &genData,
     prevYGen = yGen;
     prevYCons = yCons;
   }
-  // Draw legend inside the graph area
-  int legendY = y0 + 4;
-  tft.fillRect(x0 + 2, legendY, 10, 4, colourGen);
-  tft.drawString("Generation", x0 + 16, legendY - 2);
-  int consX = x0 + graphWidth / 2;
-  tft.fillRect(consX, legendY, 10, 4, colourCons);
-  tft.drawString("Consumption", consX + 14, legendY - 2);
+  // Legend box in the top-right corner of the graph
+  int legendX = x0 + graphWidth - legendBoxW - legendBoxMarginX;
+  int legendY = y0 + legendBoxMarginY;
+  tft.fillRect(legendX, legendY, legendBoxW, legendBoxH, TFT_DARKGREY);
+  int boxY = legendY + 6;
+  // Generation (top)
+  tft.fillRect(legendX + 8, boxY, legendColorBox, legendColorBox, colourGen);
+  tft.setTextColor(TFT_WHITE, TFT_DARKGREY);
+  tft.drawString("Generation", legendX + 8 + legendColorBox + 6,
+                 boxY - 2 + legendTextOffsetY);
+  // Consumption (bottom)
+  tft.fillRect(legendX + 8, boxY + legendColorBox + 4, legendColorBox,
+               legendColorBox, colourCons);
+  tft.drawString("Consumption", legendX + 8 + legendColorBox + 6,
+                 boxY + legendColorBox + 2 + legendTextOffsetY);
 }
 
 /*
@@ -553,37 +556,36 @@ void drawGraph(const std::vector<float> &genData,
  */
 void drawNumbers(float batteryPercent, float dailyGeneration,
                  float dailyConsumption) {
-  int startY = numbersY;
-  int colX = screenMargin;
-  int rowHeight = tft.fontHeight(2) + GAP;
+  int startY = valuesY;
+  int colX = valuesX;
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.setTextSize(2);
   // Battery state
   tft.drawString("Battery:", colX, startY);
   if (isnan(batteryPercent)) {
-    tft.drawString("-- %", colX + 120, startY);
+    tft.drawString("-- %", colX + valueLabelToValDist, startY);
   } else {
     char buf[16];
     sprintf(buf, "%5.1f %%", batteryPercent);
-    tft.drawString(buf, colX + 120, startY);
+    tft.drawString(buf, colX + valueLabelToValDist, startY);
   }
   // Daily generation
   tft.drawString("Generated:", colX, startY + rowHeight);
   if (isnan(dailyGeneration)) {
-    tft.drawString("-- kWh", colX + 120, startY + rowHeight);
+    tft.drawString("-- kWh", colX + valueLabelToValDist, startY + rowHeight);
   } else {
     char buf[16];
     sprintf(buf, "%5.2f kWh", dailyGeneration);
-    tft.drawString(buf, colX + 120, startY + rowHeight);
+    tft.drawString(buf, colX + valueLabelToValDist, startY + rowHeight);
   }
   // Daily consumption
   tft.drawString("Consumed:", colX, startY + 2 * rowHeight);
   if (isnan(dailyConsumption)) {
-    tft.drawString("-- kWh", colX + 120, startY + 2 * rowHeight);
+    tft.drawString("-- kWh", colX + valueLabelToValDist, startY + 2 * rowHeight);
   } else {
     char buf[16];
     sprintf(buf, "%5.2f kWh", dailyConsumption);
-    tft.drawString(buf, colX + 120, startY + 2 * rowHeight);
+    tft.drawString(buf, colX + valueLabelToValDist, startY + 2 * rowHeight);
   }
   tft.setTextSize(1);
 
@@ -599,15 +601,14 @@ void drawNumbers(float batteryPercent, float dailyGeneration,
   tft.setTextSize(2);
   // Centre the text vertically within the button.  The string width is
   // approximated; adjust if you change the text.
-  tft.drawString("Refresh", refreshBtnX + 6,
-                 refreshBtnY + (refreshBtnH - tft.fontHeight(2)) / 2);
+  tft.drawString("Refresh", refreshBtnX + refreshTextOffsetX,
+                 refreshBtnY + refreshBtnH / 2 + refreshTextOffsetY);
   tft.setTextSize(1);
 
   // Display the timestamp of the last successful update underneath the
   // button.  The label remains even if no updates have occurred yet.
   tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  tft.drawString(String("Updated: ") + lastUpdateStr, screenMargin,
-                 lastUpdateY);
+  tft.drawString(String("Updated: ") + lastUpdateStr, valuesX, updatedY);
 }
 
 /*
@@ -631,7 +632,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   http.begin(wifiClient, ANKER_AUTH_URL);
   http.addHeader("Content-Type", "application/json");
   // Build JSON body for login; credentials defined in secrets.h
-  JsonDocument loginDoc(256);
+  JsonDocument loginDoc;
   loginDoc["userAccount"] = ANKER_USER;
   loginDoc["password"] = ANKER_PASSWORD;
   loginDoc["country"] = ANKER_COUNTRY;
@@ -646,7 +647,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   // Parse authentication response
   String response = http.getString();
   http.end();
-  JsonDocument authDoc(1024);
+  JsonDocument authDoc;
   DeserializationError err = deserializeJson(authDoc, response);
   if (err) {
     Serial.println("Failed to parse auth response");
@@ -675,7 +676,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
   //  "daily_consumption": 2.10,
   //  "generation_curve": [24 floats ...],
   //  "consumption_curve": [24 floats ...] }.
-  JsonDocument energyDoc(4096);
+  JsonDocument energyDoc;
   err = deserializeJson(energyDoc, energyResponse);
   if (err) {
     Serial.println("Failed to parse energy response");
@@ -727,7 +728,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
   }
   String response = http.getString();
   http.end();
-  DynamicJsonDocument doc(4096);
+  JsonDocument doc;
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
     Serial.println("Failed to parse smart‑meter response");
