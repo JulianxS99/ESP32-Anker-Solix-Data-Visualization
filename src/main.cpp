@@ -131,7 +131,11 @@ constexpr int legendTextOffsetY = 7;
 // Numerical values block
 constexpr int valuesX = 15;
 constexpr int valuesY = 150;
-constexpr int valueLabelToValDist = 160;
+// Distance between the value labels and the numerical values.  The original
+// Processing sketch used 160 pixels, but the wider 16‑pixel bitmap font of the
+// ESP32 would overlap with the refresh button at that spacing.  A slightly
+// smaller distance keeps the numbers fully visible on the 320×240 display.
+constexpr int valueLabelToValDist = 130;
 constexpr int rowHeight = 24;
 
 // Refresh button
