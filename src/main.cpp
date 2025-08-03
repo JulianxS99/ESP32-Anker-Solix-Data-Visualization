@@ -1,20 +1,20 @@
 /*
   -----------------------------------------------------------------------------
   Project: Anker Solix 2 Balcony Power Plant Monitor
-  Target:  ESP32‑2432S032C display module
+  Target:  ESP32-2432S032C display module
 
   Description:
-  This program runs on a standalone ESP32 with an integrated 3.2‑inch
-  320 × 240 pixel colour TFT display (model ESP32‑2432S032C).  The board uses
-  a dual‑core ESP32 microcontroller with integrated Wi‑Fi and Bluetooth and
-  features an on‑board ST7789 LCD controller and capacitive touch
-  interface.  The display resolution is 240 × 320 pixels with a 65‑k colour gamut.
+  This program runs on a standalone ESP32 with an integrated 3.2-inch
+  320 × 240 pixel colour TFT display (model ESP32-2432S032C).  The board uses
+  a dual-core ESP32 microcontroller with integrated Wi-Fi and Bluetooth and
+  features an on-board ST7789 LCD controller and capacitive touch
+  interface.  The display resolution is 240 × 320 pixels with a 65-k colour gamut.
 
   When connected to your home network the ESP32 retrieves energy data from
-  either the Anker Solix cloud or a local smart‑meter and presents the daily
+  either the Anker Solix cloud or a local smart-meter and presents the daily
   generation and consumption curves on the TFT display.  Numerical values
   summarising the current battery charge (in %), the solar production of the
-  current day and the electrical consumption measured by the smart‑meter are
+  current day and the electrical consumption measured by the smart-meter are
   shown below the graph.  All text is printed in English.  The data
   acquisition is performed directly from the ESP32 without the need for an
   intermediate server.
@@ -27,11 +27,11 @@
        that the official Anker API requires a valid account and may change
        without notice; consult the upstream documentation for details.
 
-    2. Local smart‑meter mode (``MODE_LOCAL_SMARTMETER``): the firmware
-       queries a local smart‑meter (for example, an Anker smart‑meter or
+    2. Local smart-meter mode (``MODE_LOCAL_SMARTMETER``): the firmware
+       queries a local smart-meter (for example, an Anker smart-meter or
        another meter with a REST interface) running on your LAN.  The
        host IP/hostname, endpoints and optional authentication token must be
-       configured in ``secrets.h``.  The smart‑meter is expected to return
+       configured in ``secrets.h``.  The smart-meter is expected to return
        JSON data with instantaneous and historical values.
 
   The code is thoroughly commented to explain each step.  To use this
@@ -40,9 +40,9 @@
       ``TFT_eSPI/User_Setup.h`` enable the appropriate driver (e.g.
       ``#define ST7789_DRIVER``) and set the display resolution to 240 × 320.
     • ``ArduinoJson`` by Benoît Blanchon — used for parsing JSON returned by
-      the cloud or smart‑meter.
+      the cloud or smart-meter.
 
-  Place your Wi‑Fi and API credentials into ``src/secrets.h``.  The
+  Place your Wi-Fi and API credentials into ``src/secrets.h``.  The
   ``secrets_example.h`` file is provided as a template.
 
   -----------------------------------------------------------------------------
@@ -60,7 +60,7 @@
 #include <PNGdec.h>
 
 // Optional touch support.  Define HAS_TOUCH to 1 and install a GT911 touch
-// library (e.g. https://github.com/alex-code/GT911) to enable on‑screen
+// library (e.g. https://github.com/alex-code/GT911) to enable on-screen
 // refresh via a capacitive touch button.  When HAS_TOUCH is 0 the button is
 // still drawn but no touch events are processed.
 #ifndef HAS_TOUCH
@@ -76,7 +76,7 @@ GT911 touch;
 #include "secrets.h"
 
 /*
- * Configuration constants.  Adjust these values to fine‑tune the behaviour
+ * Configuration constants.  Adjust these values to fine-tune the behaviour
  * of the display and data acquisition.
  */
 constexpr uint32_t REFRESH_INTERVAL_MS = 5UL * 60UL * 1000UL; // update every 5 minutes
@@ -85,7 +85,7 @@ constexpr int POINTS_PER_DAY = 24;                            // number of sampl
 
 // Enumeration for operation mode.  Select MODE_ANKER_CLOUD to use the
 // Anker cloud API or MODE_LOCAL_SMARTMETER to fetch data from your local
-// smart‑meter.  You can switch at run time by changing currentMode.
+// smart-meter.  You can switch at run time by changing currentMode.
 enum class Mode { MODE_ANKER_CLOUD, MODE_LOCAL_SMARTMETER };
 
 // Global objects
@@ -105,7 +105,7 @@ constexpr size_t NUM_REQUIRED_SD_FILES =
     sizeof(REQUIRED_SD_FILES) / sizeof(REQUIRED_SD_FILES[0]);
 
 // Current operation mode; default to Anker cloud.  You may override this
-// value in setup() by reading from non‑volatile storage or by using a
+// value in setup() by reading from non-volatile storage or by using a
 // configuration button.
 Mode currentMode = Mode::MODE_ANKER_CLOUD;
 
@@ -129,7 +129,7 @@ constexpr int legendColorBox = 12;
 constexpr int legendTextOffsetY = 7;
 
 // Numerical values block
-constexpr int valuesX = 5;
+constexpr int valuesX = 15;
 constexpr int valuesY = 150;
 constexpr int valueLabelToValDist = 160;
 constexpr int rowHeight = 24;
@@ -186,7 +186,7 @@ void showBootText(const char *line1, const char *line2 = nullptr);
 
 /*
  * Setup function runs once at boot.  It initialises the serial port,
- * display and Wi‑Fi connection.
+ * display and Wi-Fi connection.
  */
 void setup() {
   Serial.begin(115200);
@@ -224,7 +224,7 @@ void setup() {
   tft.drawString("Anker Solix Monitor", tft.width() / 2, tft.height() / 2 - 20);
   tft.drawString("Connecting to WiFi ...", tft.width() / 2, tft.height() / 2 + 10);
 
-  // Connect to Wi‑Fi
+  // Connect to Wi-Fi
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   uint8_t attempt = 0;
@@ -253,7 +253,7 @@ void setup() {
   // to zero because relative time (UTC) suffices for display purposes.
   configTime(0, 0, "pool.ntp.org", "time.nist.gov", "time.google.com");
   // Wait briefly until the time is set.  The epoch must be greater than
-  // 1970‑01‑02 to indicate that a valid time has been acquired.  If
+  // 1970-01-02 to indicate that a valid time has been acquired.  If
   // acquisition fails within ~5 seconds the loop will continue and the
   // timestamp will remain unset until the next fetch.
   time_t nowT = time(nullptr);
@@ -512,7 +512,7 @@ void drawGraph(const std::vector<float> &genData,
   for (int i = 0; i <= 4; ++i) {
     int y = y0 + graphHeight - (graphHeight * i) / 4;
     tft.drawLine(x0, y, x0 + graphWidth, y, TFT_DARKGREY);
-    // Y‑axis labels (percentage of maximum power)
+    // Y-axis labels (percentage of maximum power)
     char label[6];
     sprintf(label, "%3d%%", i * 25);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -590,7 +590,7 @@ void drawNumbers(float batteryPercent, float dailyGeneration,
   tft.setTextSize(1);
 
   // Draw the refresh button.  A dark grey filled rectangle with a light
-  // border and white text forms the on‑screen button.  Users can tap
+  // border and white text forms the on-screen button.  Users can tap
   // anywhere inside this area to trigger an immediate refresh when touch
   // support is enabled.
   tft.fillRect(refreshBtnX, refreshBtnY, refreshBtnW, refreshBtnH,
@@ -701,7 +701,7 @@ bool fetchAnkerData(float &batteryPercent, float &dailyGeneration,
 }
 
 /*
- * Fetch energy data from a local smart‑meter.  The smart‑meter must provide
+ * Fetch energy data from a local smart-meter.  The smart-meter must provide
  * an HTTP API returning JSON with the same structure as described above.
  * Configure the host address and endpoint in ``secrets.h``.  Returns true
  * on success.
@@ -711,7 +711,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
                          std::vector<float> &generationCurve,
                          std::vector<float> &consumptionCurve) {
   if (strlen(SMARTMETER_HOST) == 0 || strlen(SMARTMETER_ENERGY_ENDPOINT) == 0) {
-    Serial.println("Smart‑meter host or endpoint not configured");
+    Serial.println("Smart-meter host or endpoint not configured");
     return false;
   }
   HTTPClient http;
@@ -722,7 +722,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
   }
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
-    Serial.printf("Smart‑meter request failed: %d\n", httpCode);
+    Serial.printf("Smart-meter request failed: %d\n", httpCode);
     http.end();
     return false;
   }
@@ -731,7 +731,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
   JsonDocument doc;
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
-    Serial.println("Failed to parse smart‑meter response");
+    Serial.println("Failed to parse smart-meter response");
     return false;
   }
   batteryPercent = doc["battery_percent"] | NAN;
@@ -745,13 +745,13 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
       consumptionCurve[i] = consArr[i].as<float>();
     }
   } else {
-    Serial.println("Invalid curve length from smart‑meter");
+    Serial.println("Invalid curve length from smart-meter");
   }
   return true;
 }
 
 /*
- * Update the human‑readable timestamp string ``lastUpdateStr``.
+ * Update the human-readable timestamp string ``lastUpdateStr``.
  *
  * This helper uses the POSIX ``time`` and ``localtime`` functions provided
  * by the ESP32 standard C library to obtain the current UTC time.  The
@@ -761,7 +761,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
  */
 void updateTimestamp() {
   time_t nowT = time(nullptr);
-  // Do not update if the epoch has not been set (less than 1970‑01‑02)
+  // Do not update if the epoch has not been set (less than 1970-01-02)
   if (nowT < 100000) {
     return;
   }
@@ -770,7 +770,7 @@ void updateTimestamp() {
     return;
   }
   char buf[9];
-  // Format as HH:MM:SS in 24‑hour notation
+  // Format as HH:MM:SS in 24-hour notation
   if (strftime(buf, sizeof(buf), "%H:%M:%S", &timeInfo) > 0) {
     lastUpdateStr = String(buf);
   }
