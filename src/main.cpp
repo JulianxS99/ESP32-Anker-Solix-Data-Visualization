@@ -727,7 +727,7 @@ bool fetchSmartmeterData(float &batteryPercent, float &dailyGeneration,
   }
   String response = http.getString();
   http.end();
-  JsonDocument doc(4096);
+  DynamicJsonDocument doc(4096);
   DeserializationError err = deserializeJson(doc, response);
   if (err) {
     Serial.println("Failed to parse smart‑meter response");
