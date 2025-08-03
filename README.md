@@ -14,9 +14,10 @@ Wi-Fi and Bluetooth.  The display resolution is
   network and retrieves data either from the **Anker Solix cloud** or a local
   **smart-meter**.  No additional servers or Raspberry Pi are required.
 * **Graphical display** - A 24-point curve shows the hourly **generation**
-  (green) and **consumption** (red) of the current day.  The graph is
+  (yellow) and **consumption** (red) of the current day.  The graph is
   automatically scaled to the maximum value so that even small differences are
-  visible.
+  visible. The screen layout follows the reference design in `sketch.pde` with
+  a legend in the upper-right corner and fixed positions for all elements.
 * **Numerical summaries** - The current battery charge (in %), daily energy
   production and daily energy consumption (in kWh) are displayed below the
   graph.
@@ -155,7 +156,7 @@ After uploading the firmware the ESP32 will connect to the configured Wi-Fi
 network and retrieve energy data every **five minutes**.  If the data
 acquisition fails (e.g., due to network problems or incorrect endpoints) a
 message is displayed on the screen.  Successful retrieval results in a
-coloured graph and numerical values.  The green line represents the **solar
+coloured graph and numerical values.  The yellow line represents the **solar
 generation**; the red line shows **consumption**.  The values at the bottom
 show the **battery charge**, **daily generation** and **daily consumption**.
 

@@ -1,13 +1,13 @@
-// ================== Layout-Variablen =========================
+// ================== Layout variables =========================
 int w = 320, h = 240;
 
-// --- Graph-Bereich ---
+// --- Graph area ---
 int graphX      = 40;
 int graphY      = 8;
 int graphWidth  = 270;
 int graphHeight = 120;
 
-// --- Legende (Position im Graphen) ---
+// --- Legend (position inside the graph) ---
 int legendBoxW = 115;
 int legendBoxH = 38;
 int legendBoxMarginX = 8;
@@ -15,23 +15,23 @@ int legendBoxMarginY = 6;
 int legendColorBox = 12;
 int legendTextOffsetY = 7;
 
-// --- Werte-Block (Battery, Generated, Consumed) ---
+// --- Value block (Battery, Generated, Consumed) ---
 int valuesX      = 5;
 int valuesY      = 150;
 int valueLabelToValDist = 160;
 int rowHeight    = 24;
 
-// --- Refresh-Button ---
+// --- Refresh button ---
 int refreshBtnW = 80, refreshBtnH = 30;
 int refreshBtnX = w - refreshBtnW - 10;
 int refreshBtnY = 200;
 int refreshTextOffsetX = 16;
 int refreshTextOffsetY = -1;
 
-// --- Zeitstempel ---
+// --- Timestamp ---
 int updatedY = 220;
 
-// ================== Ende Layout-Variablen ====================
+// ================== End of layout variables ====================
 
 int POINTS_PER_DAY = 24;
 float[] generation = new float[POINTS_PER_DAY];
@@ -66,11 +66,11 @@ void draw() {
   drawUpdatedText();
 }
 
-// -------- Graph mit automatischer Skalierung, gelber fetter Generation --------
+// -------- Graph with automatic scaling; generation is thick and yellow --------
 void drawGraph(float[] genData, float[] consData) {
   int x0 = graphX, y0 = graphY, gw = graphWidth, gh = graphHeight;
 
-  // Y-Achsen-Skalierung
+  // Y-axis scaling
   float dataMax = max(arrayMax(genData), arrayMax(consData));
   float maxVal = roundUpToNiceValue(dataMax);
 
@@ -94,7 +94,7 @@ void drawGraph(float[] genData, float[] consData) {
   }
   strokeWeight(1);
 
-  // X-Achse
+  // X-axis
   for (int i=0; i<=24; i+=6) {
     int x = x0 + (gw * i) / POINTS_PER_DAY;
     stroke(120,180,255,80);
@@ -105,7 +105,7 @@ void drawGraph(float[] genData, float[] consData) {
     text(str(i), x, y0 + gh + 2);
   }
 
-  // Generation (fett, gelb)
+  // Generation curve (thick yellow)
   stroke(255,215,0); strokeWeight(3); noFill();
   beginShape();
   for (int i=0; i<POINTS_PER_DAY; i++) {
@@ -116,7 +116,7 @@ void drawGraph(float[] genData, float[] consData) {
   endShape();
   strokeWeight(1);
 
-  // Consumption (rot)
+  // Consumption curve (red)
   stroke(255, 60, 60); noFill();
   beginShape();
   for (int i=0; i<POINTS_PER_DAY; i++) {
@@ -126,19 +126,19 @@ void drawGraph(float[] genData, float[] consData) {
   }
   endShape();
 
-  // Legende oben rechts, Generation gelb!
+  // Legend in the top-right, generation is yellow
   int legendX = x0 + gw - legendBoxW - legendBoxMarginX;
   int legendY = y0 + legendBoxMarginY;
   fill(30, 200);  noStroke();
   rect(legendX, legendY, legendBoxW, legendBoxH, 6);
 
-  // Generation (oben)
+  // Generation (top)
   int boxY = legendY + 6;
   fill(255,215,0); rect(legendX+8, boxY, legendColorBox, legendColorBox, 2);
   fill(255); textFont(font, fontSmall); textAlign(LEFT, TOP);
   text("Generation", legendX+8+legendColorBox+6, boxY - 2 + legendTextOffsetY);
 
-  // Consumption (unten)
+  // Consumption (bottom)
   fill(255,60,60); rect(legendX+8, boxY+legendColorBox+4, legendColorBox, legendColorBox, 2);
   fill(255);
   text("Consumption", legendX+8+legendColorBox+6, boxY+legendColorBox+2 + legendTextOffsetY);
